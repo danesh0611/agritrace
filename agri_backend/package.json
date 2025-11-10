@@ -1,6 +1,10 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "agri_backend",
   "version": "1.0.0",
+  "engines": {
+    "node": "18.x"
+  },
   "main": "index.js",
   "type": "module",
   "scripts": {

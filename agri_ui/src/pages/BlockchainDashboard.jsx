@@ -85,7 +85,7 @@ export default function BlockchainDashboard() {
 							</div>
 							<div className="flex justify-between items-center py-2 border-b border-slate-200">
 								<span className="font-medium text-slate-700">Role:</span>
-								<span className="text-slate-900 capitalize">{role}</span>
+								<span className="text-slate-900 capitalize">{user.role}</span>
 							</div>
 						</div>
 						<div className="space-y-3">
@@ -158,7 +158,7 @@ export default function BlockchainDashboard() {
 						{role === 'farmer' && (
 							<FarmerForm onSuccess={handleTransactionSuccess} />
 						)}
-						{role === 'transporter' && (
+						{(role === 'transporter' || role === 'distributor') && (
 							<DistributorForm onSuccess={handleTransactionSuccess} />
 						)}
 						{role === 'retailer' && (
