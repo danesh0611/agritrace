@@ -25,6 +25,7 @@ export default function Login() {
 		if (res.ok && res.data && res.data.success) {
 			// Use the role from the backend user data
 			login({
+				id: res.data.user.id,
 				username: res.data.user.username,
 				email: res.data.user.email,
 				role: res.data.user.role // Use backend role, not frontend selection

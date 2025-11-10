@@ -56,7 +56,7 @@ async function initializePool() {
     pool = await sql.connect(config);
     console.log('Connected to SQL Server successfully');
     
-    // Create table if not exists
+    // Create tables if not exists
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
       CREATE TABLE users (
@@ -69,6 +69,37 @@ async function initializePool() {
       )
     `);
     console.log('Users table ready');
+
+    // Create farmer_approvals table for pending distributor submissions
+    // Drop old table if it exists (to ensure schema is correct)
+    await pool.request().query(`
+      IF EXISTS (SELECT * FROM sysobjects WHERE name='farmer_approvals' AND xtype='U')
+      DROP TABLE farmer_approvals
+    `);
+
+    // Create fresh table with correct schema
+    await pool.request().query(`
+      CREATE TABLE farmer_approvals (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        batch_id NVARCHAR(255) NOT NULL,
+        crop_name NVARCHAR(255) NOT NULL,
+        distributor_id INT NOT NULL,
+        distributor_name NVARCHAR(255) NOT NULL,
+        quantity_received FLOAT NOT NULL,
+        purchase_price FLOAT NOT NULL,
+        transport_details NVARCHAR(MAX) NOT NULL,
+        warehouse_location NVARCHAR(255) NOT NULL,
+        handover_date BIGINT NOT NULL,
+        farmer_email NVARCHAR(255) NOT NULL,
+        status NVARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+        distributor_tx_hash NVARCHAR(MAX),
+        farmer_tx_hash NVARCHAR(MAX),
+        created_at DATETIME DEFAULT GETDATE(),
+        updated_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    
+    console.log('✓ Farmer approvals table created (fresh schema)');
     return true;
   } catch (err) {
     console.error('SQL Server connection error:', err);
@@ -167,5 +198,242 @@ app.post('/api/login', async (req, res) => {
   } catch (err) {
     console.error('Login query error:', err);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Endpoint: Distributor submits transaction for farmer approval
+app.post('/api/approvals/submit', async (req, res) => {
+  const {
+    batchId,
+    cropName,
+    distributorId,
+    distributorName,
+    quantityReceived,
+    purchasePrice,
+    transportDetails,
+    warehouseLocation,
+    handoverDate,
+    farmerEmail,
+    distributorTxHash
+  } = req.body;
+
+  console.log('Approval submission received:', {
+    batchId,
+    cropName,
+    distributorId,
+    distributorName,
+    quantityReceived,
+    purchasePrice,
+    transportDetails,
+    warehouseLocation,
+    handoverDate,
+    farmerEmail,
+    distributorTxHash
+  });
+
+  if (!batchId || !cropName || !distributorId || !farmerEmail) {
+    const missingFields = [];
+    if (!batchId) missingFields.push('batchId');
+    if (!cropName) missingFields.push('cropName');
+    if (!distributorId) missingFields.push('distributorId');
+    if (!farmerEmail) missingFields.push('farmerEmail');
+    console.error('Missing required fields:', missingFields);
+    return res.status(400).json({ 
+      error: 'Missing required fields',
+      missingFields,
+      receivedData: req.body
+    });
+  }
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const request = pool.request();
+    request.input('batch_id', sql.NVarChar, batchId);
+    request.input('crop_name', sql.NVarChar, cropName);
+    request.input('distributor_id', sql.Int, distributorId);
+    request.input('distributor_name', sql.NVarChar, distributorName);
+    request.input('quantity_received', sql.Float, parseFloat(quantityReceived));
+    request.input('purchase_price', sql.Float, parseFloat(purchasePrice));
+    request.input('transport_details', sql.NVarChar, transportDetails);
+    request.input('warehouse_location', sql.NVarChar, warehouseLocation);
+    request.input('handover_date', sql.BigInt, handoverDate);
+    request.input('farmer_email', sql.NVarChar, farmerEmail);
+    request.input('distributor_tx_hash', sql.NVarChar, distributorTxHash || null);
+
+    const result = await request.query(`
+      INSERT INTO farmer_approvals 
+      (batch_id, crop_name, distributor_id, distributor_name, quantity_received, purchase_price, 
+       transport_details, warehouse_location, handover_date, farmer_email, distributor_tx_hash, status)
+      VALUES 
+      (@batch_id, @crop_name, @distributor_id, @distributor_name, @quantity_received, @purchase_price,
+       @transport_details, @warehouse_location, @handover_date, @farmer_email, @distributor_tx_hash, 'pending')
+    `);
+
+    res.json({ 
+      success: true, 
+      message: 'Submission saved. Waiting for farmer approval.',
+      approvalId: result.rowsAffected[0]
+    });
+  } catch (err) {
+    console.error('Approval submission error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Endpoint: Get pending approvals for a farmer
+app.get('/api/approvals/pending/:farmerEmail', async (req, res) => {
+  const { farmerEmail } = req.params;
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const request = pool.request();
+    request.input('farmer_email', sql.NVarChar, farmerEmail);
+
+    const result = await request.query(`
+      SELECT * FROM farmer_approvals 
+      WHERE farmer_email = @farmer_email AND status = 'pending'
+      ORDER BY created_at DESC
+    `);
+
+    res.json({ 
+      success: true, 
+      approvals: result.recordset 
+    });
+  } catch (err) {
+    console.error('Error fetching pending approvals:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Endpoint: Get approved batches for a distributor (awaiting blockchain submission)
+app.get('/api/approvals/pending-blockchain/:distributorId', async (req, res) => {
+  const { distributorId } = req.params;
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const request = pool.request();
+    request.input('distributor_id', sql.Int, parseInt(distributorId));
+
+    const result = await request.query(`
+      SELECT * FROM farmer_approvals 
+      WHERE distributor_id = @distributor_id 
+      AND status = 'approved'
+      AND (distributor_tx_hash IS NULL OR distributor_tx_hash = '')
+      ORDER BY updated_at DESC
+    `);
+
+    res.json({ 
+      success: true, 
+      approvals: result.recordset 
+    });
+  } catch (err) {
+    console.error('Error fetching pending blockchain approvals:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Endpoint: Confirm blockchain submission (distributor submits tx hash after approval)
+// MUST come before the generic :action endpoint to be matched first!
+app.post('/api/approvals/:approvalId/blockchain-confirm', async (req, res) => {
+  const { approvalId } = req.params;
+  const { distributorTxHash } = req.body;
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(approvalId));
+    request.input('distributor_tx_hash', sql.NVarChar, distributorTxHash);
+
+    await request.query(`
+      UPDATE farmer_approvals 
+      SET distributor_tx_hash = @distributor_tx_hash, updated_at = GETDATE()
+      WHERE id = @id
+    `);
+
+    res.json({ 
+      success: true, 
+      message: 'Blockchain submission confirmed. Batch is now fully on blockchain and farmer-approved!'
+    });
+  } catch (err) {
+    console.error('Error confirming blockchain submission:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Endpoint: Farmer approves or rejects submission
+// This generic endpoint must come AFTER the blockchain-confirm endpoint!
+app.post('/api/approvals/:approvalId/:action', async (req, res) => {
+  const { approvalId, action } = req.params;
+  const { farmerTxHash } = req.body;
+
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(approvalId));
+    request.input('status', sql.NVarChar, newStatus);
+    request.input('farmer_tx_hash', sql.NVarChar, farmerTxHash || null);
+
+    await request.query(`
+      UPDATE farmer_approvals 
+      SET status = @status, farmer_tx_hash = @farmer_tx_hash, updated_at = GETDATE()
+      WHERE id = @id
+    `);
+
+    res.json({ 
+      success: true, 
+      message: `Approval ${action}ed successfully. Chains are now linked for this batch.`,
+      status: newStatus
+    });
+  } catch (err) {
+    console.error('Error updating approval:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Endpoint: Get approved batches for a farmer
+app.get('/api/approvals/approved/:farmerEmail', async (req, res) => {
+  const { farmerEmail } = req.params;
+
+  try {
+    if (!pool) {
+      throw new Error('Database not connected');
+    }
+
+    const request = pool.request();
+    request.input('farmer_email', sql.NVarChar, farmerEmail);
+
+    const result = await request.query(`
+      SELECT * FROM farmer_approvals 
+      WHERE farmer_email = @farmer_email AND status = 'approved'
+      ORDER BY created_at DESC
+    `);
+
+    res.json({ 
+      success: true, 
+      approvals: result.recordset 
+    });
+  } catch (err) {
+    console.error('Error fetching approved approvals:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });

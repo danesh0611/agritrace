@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useContract } from '../hooks/useContract'
 import FarmerForm from '../components/BlockchainForms/FarmerForm'
 import DistributorForm from '../components/BlockchainForms/DistributorForm'
+import FarmerApprovals from '../components/FarmerApprovals'
+import ApprovedBatches from '../components/ApprovedBatches'
 import RetailerForm from '../components/BlockchainForms/RetailerForm'
 import ProduceDisplay from '../components/ProduceDisplay'
 import { FaLeaf, FaUser, FaSignOutAlt, FaWallet, FaToggleOn, FaToggleOff } from 'react-icons/fa'
@@ -156,10 +158,16 @@ export default function BlockchainDashboard() {
 					<div className="space-y-8">
 						{/* Role-specific blockchain form */}
 						{role === 'farmer' && (
-							<FarmerForm onSuccess={handleTransactionSuccess} />
+							<>
+								<FarmerApprovals farmerEmail={user.email} onApprovalComplete={handleTransactionSuccess} />
+								<FarmerForm onSuccess={handleTransactionSuccess} />
+							</>
 						)}
 						{(role === 'transporter' || role === 'distributor') && (
-							<DistributorForm onSuccess={handleTransactionSuccess} />
+							<>
+								<ApprovedBatches onTransactionComplete={handleTransactionSuccess} />
+								<DistributorForm onSuccess={handleTransactionSuccess} />
+							</>
 						)}
 						{role === 'retailer' && (
 							<RetailerForm onSuccess={handleTransactionSuccess} />
