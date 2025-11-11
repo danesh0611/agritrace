@@ -163,23 +163,23 @@ export const useContract = () => {
 			setIsLoading(true)
 			setError('')
 
-			// Keep price as rupees (no ETH conversion needed)
-			// Store price directly as entered in rupees
-			const priceInRupees = pricePerKg
+			// Convert to integers for blockchain (no decimals allowed in uint256)
+			const quantityInt = Math.floor(parseFloat(quantity) || 0)
+			const priceInt = Math.floor(parseFloat(pricePerKg) || 0)
 
 			console.log('Creating produce with params:', {
 				farmerName,
 				cropName,
-				quantity: quantity.toString(),
-				pricePerKg: priceInRupees.toString(),
+				quantity: quantityInt.toString(),
+				pricePerKg: priceInt.toString(),
 				location
 			})
 
 			const tx = await contract.createProduce(
 				farmerName,
 				cropName,
-				quantity,
-				priceInRupees,
+				quantityInt,
+				priceInt,
 				location
 			)
 
@@ -224,29 +224,31 @@ export const useContract = () => {
 			setIsLoading(true)
 			setError('')
 
-			// Keep price as rupees (no ETH conversion needed)
-			const priceInRupees = purchasePrice
+			// Convert to integers for blockchain (no decimals allowed in uint256)
+			const quantityInt = Math.floor(parseFloat(quantityReceived) || 0)
+			const priceInt = Math.floor(parseFloat(purchasePrice) || 0)
+			const handoverDateInt = Math.floor(parseFloat(handoverDate) || 0)
 
 			console.log('Adding distributor with params:', {
 				batchId,
 				cropName,
 				distributorName,
-				quantityReceived: quantityReceived.toString(),
-				purchasePrice: priceInRupees.toString(),
+				quantityReceived: quantityInt.toString(),
+				purchasePrice: priceInt.toString(),
 				transportDetails,
 				warehouseLocation,
-				handoverDate: handoverDate.toString()
+				handoverDate: handoverDateInt.toString()
 			})
 
 			const tx = await contract.addDistributor(
 				batchId,
 				cropName,
 				distributorName,
-				quantityReceived,
-				priceInRupees,
+				quantityInt,
+				priceInt,
 				transportDetails,
 				warehouseLocation,
-				handoverDate
+				handoverDateInt
 			)
 
 			console.log('Transaction sent:', tx.hash)
@@ -288,9 +290,11 @@ export const useContract = () => {
 			setIsLoading(true)
 			setError('')
 
-			// Keep prices as rupees (no ETH conversion needed)
-			const retailPriceInRupees = retailPurchasePrice
-			const consumerPriceInRupees = consumerPrice
+			// Convert to integers for blockchain (no decimals allowed in uint256)
+			const retailQuantityInt = Math.floor(parseFloat(retailQuantity) || 0)
+			const retailPriceInt = Math.floor(parseFloat(retailPurchasePrice) || 0)
+			const consumerPriceInt = Math.floor(parseFloat(consumerPrice) || 0)
+			const expiryDateInt = Math.floor(parseFloat(expiryDate) || 0)
 
 			console.log('Adding retailer with params:', {
 				batchId,
@@ -298,10 +302,10 @@ export const useContract = () => {
 				distributorName,
 				retailerName,
 				shopLocation,
-				retailQuantity: retailQuantity.toString(),
-				retailPurchasePrice: retailPriceInRupees.toString(),
-				consumerPrice: consumerPriceInRupees.toString(),
-				expiryDate: expiryDate.toString()
+				retailQuantity: retailQuantityInt.toString(),
+				retailPurchasePrice: retailPriceInt.toString(),
+				consumerPrice: consumerPriceInt.toString(),
+				expiryDate: expiryDateInt.toString()
 			})
 
 			const tx = await contract.addRetailer(
@@ -310,10 +314,10 @@ export const useContract = () => {
 				distributorName,
 				retailerName,
 				shopLocation,
-				retailQuantity,
-				retailPriceInRupees,
-				consumerPriceInRupees,
-				expiryDate
+				retailQuantityInt,
+				retailPriceInt,
+				consumerPriceInt,
+				expiryDateInt
 			)
 
 			console.log('Transaction sent:', tx.hash)
