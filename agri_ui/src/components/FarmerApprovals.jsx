@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useContract } from '../hooks/useContract'
 import { FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa'
+import { API_BASE_URL } from '../lib/api'
 
 export default function FarmerApprovals({ farmerEmail, onApprovalComplete }) {
 	const { createProduce, isConnected, connectWallet, isLoading } = useContract()
@@ -19,7 +20,7 @@ export default function FarmerApprovals({ farmerEmail, onApprovalComplete }) {
 
 	const fetchPendingApprovals = async () => {
 		try {
-			const response = await fetch(`http://localhost:5000/api/approvals/pending/${farmerEmail}`)
+			const response = await fetch(`${API_BASE_URL}/api/approvals/pending/${farmerEmail}`)
 			const data = await response.json()
 
 			if (data.success) {
@@ -42,7 +43,7 @@ export default function FarmerApprovals({ farmerEmail, onApprovalComplete }) {
 		try {
 			// Only update database status to "approved" (NO blockchain yet)
 			// Distributor will do blockchain transaction after seeing approval
-			const response = await fetch(`http://localhost:5000/api/approvals/${approval.id}/approve`, {
+			const response = await fetch(`${API_BASE_URL}/api/approvals/${approval.id}/approve`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ farmerTxHash: null })  // No TX hash yet
@@ -74,7 +75,7 @@ export default function FarmerApprovals({ farmerEmail, onApprovalComplete }) {
 		setSuccessMessage(null)
 
 		try {
-			const response = await fetch(`http://localhost:5000/api/approvals/${approval.id}/reject`, {
+			const response = await fetch(`${API_BASE_URL}/api/approvals/${approval.id}/reject`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ farmerTxHash: null })

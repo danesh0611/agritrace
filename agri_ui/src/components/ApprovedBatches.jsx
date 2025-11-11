@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useContract } from '../hooks/useContract'
 import { FaCheckCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa'
+import { API_BASE_URL } from '../lib/api'
 
 export default function ApprovedBatches({ onTransactionComplete }) {
 	const { user } = useAuth()
@@ -22,7 +23,7 @@ export default function ApprovedBatches({ onTransactionComplete }) {
 	const fetchApprovedBatches = async () => {
 		try {
 			// Fetch all approvals where status is approved and distributor_tx_hash is NULL
-			const response = await fetch(`http://localhost:5000/api/approvals/pending-blockchain/${user?.id || 0}`)
+			const response = await fetch(`${API_BASE_URL}/api/approvals/pending-blockchain/${user?.id || 0}`)
 			const data = await response.json()
 
 			if (data.success) {
@@ -58,11 +59,11 @@ export default function ApprovedBatches({ onTransactionComplete }) {
 				batch.handover_date
 			)
 
-			// Update database with distributor tx hash
-			const response = await fetch(`http://localhost:5000/api/approvals/${batch.id}/blockchain-confirm`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ distributorTxHash: txHash })
+		// Update database with distributor tx hash
+		const response = await fetch(`${API_BASE_URL}/api/approvals/${batch.id}/blockchain-confirm`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ distributorTxHash: txHash })
 			})
 
 			const data = await response.json()

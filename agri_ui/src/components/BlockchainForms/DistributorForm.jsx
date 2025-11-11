@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useContract } from '../../hooks/useContract'
 import { useAuth } from '../../contexts/AuthContext'
 import { FaCheckCircle, FaExclamationTriangle, FaSpinner } from 'react-icons/fa'
+import { API_BASE_URL } from '../../lib/api'
 
 export default function DistributorForm({ onSuccess }) {
 	const { addDistributor, isConnected, connectWallet, isLoading, error } = useContract()
@@ -62,7 +63,7 @@ export default function DistributorForm({ onSuccess }) {
 
 		try {
 			// ONLY send to backend for farmer approval (NO blockchain yet)
-			const response = await fetch('http://localhost:5000/api/approvals/submit', {
+			const response = await fetch(`${API_BASE_URL}/api/approvals/submit`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
