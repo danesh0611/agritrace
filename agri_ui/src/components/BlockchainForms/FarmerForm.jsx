@@ -9,7 +9,8 @@ export default function FarmerForm({ onSuccess }) {
 		cropName: '',
 		quantity: '',
 		pricePerKg: '',
-		location: ''
+		location: '',
+		expiryDate: ''
 	})
 	const [txHash, setTxHash] = useState('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
@@ -39,7 +40,8 @@ export default function FarmerForm({ onSuccess }) {
 				formData.cropName,
 				parseFloat(formData.quantity),
 				parseFloat(formData.pricePerKg),
-				formData.location
+				formData.location,
+				formData.expiryDate ? Math.floor(new Date(formData.expiryDate).getTime() / 1000) : undefined
 			)
 
 			setTxHash(hash)
@@ -48,7 +50,8 @@ export default function FarmerForm({ onSuccess }) {
 				cropName: '',
 				quantity: '',
 				pricePerKg: '',
-				location: ''
+				location: '',
+				expiryDate: ''
 			})
 
 			if (onSuccess) {
@@ -180,6 +183,17 @@ export default function FarmerForm({ onSuccess }) {
 						onChange={handleInputChange}
 						className="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
 						required
+					/>
+				</label>
+
+				<label className="sm:col-span-2 flex flex-col text-sm">
+					<span className="mb-1 text-slate-700">Expiry Date (Optional)</span>
+					<input
+						type="date"
+						name="expiryDate"
+						value={formData.expiryDate}
+						onChange={handleInputChange}
+						className="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 				</label>
 

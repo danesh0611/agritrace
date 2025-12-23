@@ -1,8 +1,5 @@
 // Detect backend URL - use Azure when deployed, localhost for development
-export const API_BASE_URL = 
-	import.meta.env.MODE === 'development' 
-		? 'http://localhost:5000' 
-		: 'https://agri-backend-2025-dxfkavfcamg0ebby.southindia-01.azurewebsites.net';
+export const API_BASE_URL = 'https://agri-backend-2025-dxfkavfcamg0ebby.southindia-01.azurewebsites.net';
 
 export const BASE_URL = API_BASE_URL + '/api/';
 

@@ -150,7 +150,7 @@ export const useContract = () => {
 	}, [initializeContract])
 
 	// Contract interaction functions
-	const createProduce = async (farmerName, cropName, quantity, pricePerKg, location) => {
+	const createProduce = async (farmerName, cropName, quantity, pricePerKg, location, expiryDate) => {
 		if (!contract) {
 			throw new Error('Contract not initialized. Please connect MetaMask wallet.')
 		}
@@ -166,13 +166,15 @@ export const useContract = () => {
 			// Convert to integers for blockchain (no decimals allowed in uint256)
 			const quantityInt = Math.floor(parseFloat(quantity) || 0)
 			const priceInt = Math.floor(parseFloat(pricePerKg) || 0)
+			const expiryInt = Math.floor(parseFloat(expiryDate) || Math.floor(Date.now() / 1000) + 86400 * 365) // Default to 1 year if not provided
 
 			console.log('Creating produce with params:', {
 				farmerName,
 				cropName,
 				quantity: quantityInt.toString(),
 				pricePerKg: priceInt.toString(),
-				location
+				location,
+				expiryDate: expiryInt.toString()
 			})
 
 			const tx = await contract.createProduce(
@@ -180,7 +182,8 @@ export const useContract = () => {
 				cropName,
 				quantityInt,
 				priceInt,
-				location
+				location,
+				expiryInt
 			)
 
 			console.log('Transaction sent:', tx.hash)
