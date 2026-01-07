@@ -34,6 +34,7 @@ export default function Navbar() {
 								<>
 									<NavLink to="/dashboard" className={navLinkClass}>{t('dashboard.title')}</NavLink>
 									<NavLink to="/blockchain" className={navLinkClass}>Blockchain</NavLink>
+									<NavLink to="/marketplace" className={navLinkClass}>Marketplace</NavLink>
 									<NavLink to="/qr" className={navLinkClass}>{t('qrGenerator.title')}</NavLink>
 								</>
 							) : (

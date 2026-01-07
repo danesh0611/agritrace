@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useContract } from '../hooks/useContract'
 import { FaCamera, FaSpinner, FaExclamationTriangle } from 'react-icons/fa'
+import BatchTracker from './BatchTracker'
 
 export default function QRScanner() {
 	const { getProduce, isConnected, connectWallet, isLoading } = useContract()
@@ -32,6 +33,11 @@ export default function QRScanner() {
 		setProduceData(null)
 
 		try {
+			// Validate that it's a proper batch ID (should be 66 chars with 0x prefix for bytes32)
+			if (batchId.length !== 66 || !batchId.startsWith('0x')) {
+				throw new Error('Invalid batch ID format. Batch IDs should start with "0x" and be 66 characters long.')
+			}
+			
 			const data = await getProduce(batchId)
 			console.log('Fetched produce data:', data) // Debug log
 			setProduceData(data)
@@ -314,6 +320,13 @@ export default function QRScanner() {
 							</p>
 						</div>
 					) : null}
+				</div>
+			)}
+
+			{/* New: Show marketplace orders and full batch journey */}
+			{produceData && scannedBatchId && (
+				<div className="mt-8">
+					<BatchTracker batchId={scannedBatchId} />
 				</div>
 			)}
 		</div>

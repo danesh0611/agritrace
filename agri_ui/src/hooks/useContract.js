@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BrowserProvider, Contract, formatEther, parseEther } from 'ethers'
+import { BrowserProvider, Contract, formatEther, parseEther, ethers } from 'ethers'
 import { SUPPLY_CHAIN_ABI, CONTRACT_ADDRESS } from '../lib/contractABI'
 
 export const useContract = () => {
@@ -263,7 +263,34 @@ export const useContract = () => {
 			return tx.hash
 		} catch (err) {
 			console.error('Error adding distributor:', err)
-			setError(`Failed to add distributor: ${err.message}`)
+			
+			// Try to extract meaningful error message
+			let errorMsg = err.message
+			if (err.reason) {
+				errorMsg = err.reason
+			} else if (err.data) {
+				try {
+					// Try to decode revert reason
+					const iface = new ethers.Interface(SUPPLY_CHAIN_ABI)
+					const decoded = iface.parseError(err.data)
+					errorMsg = decoded?.name || err.message
+				} catch (e) {
+					// Fallback: check for common revert reasons
+					if (err.message.includes('Batch does not exist')) {
+						errorMsg = '❌ Batch not found! Make sure the Batch ID is correct.'
+					} else if (err.message.includes('Not enough farmer quantity')) {
+						errorMsg = '❌ Not enough quantity available from farmer.'
+					} else if (err.message.includes('expired')) {
+						errorMsg = '❌ Product has expired.'
+					} else if (err.message.includes('Crop name mismatch')) {
+						errorMsg = '❌ Crop name does not match the batch.'
+					} else {
+						errorMsg = err.message
+					}
+				}
+			}
+			
+			setError(`Failed to add distributor: ${errorMsg}`)
 			throw err
 		} finally {
 			setIsLoading(false)

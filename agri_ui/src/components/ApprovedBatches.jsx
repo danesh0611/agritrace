@@ -47,39 +47,99 @@ export default function ApprovedBatches({ onTransactionComplete }) {
 		setSuccessMessage(null)
 
 		try {
+			// Validate all required fields
+			const requiredFields = {
+				'Batch ID': batch.batch_id,
+				'Crop Name': batch.crop_name,
+				'Distributor Name': batch.distributor_name,
+				'Quantity': batch.quantity_received,
+				'Price': batch.purchase_price,
+				'Handover Date': batch.handover_date
+			};
+
+			const missingFields = Object.entries(requiredFields)
+				.filter(([key, value]) => !value || value === null || value === undefined || value === '')
+				.map(([key]) => key);
+
+			if (missingFields.length > 0) {
+				setError(`❌ Missing required fields: ${missingFields.join(', ')}`);
+				setProcessingId(null)
+				return
+			}
+
+			// Convert batch_id to bytes32 format if needed
+			let batchIdBytes32 = batch.batch_id.toString().trim()
+			
+			// Validate batch ID format
+			if (!batchIdBytes32.startsWith('0x')) {
+				setError(`❌ Invalid Batch ID format!\n\nBatch ID must start with "0x" and be 66 characters long.\n\nCurrent format: ${batchIdBytes32}\n\nPlease ensure the Batch ID from blockchain is correct.`);
+				setProcessingId(null)
+				return
+			}
+			
+			if (batchIdBytes32.length !== 66) {
+				setError(`❌ Invalid Batch ID length!\n\nExpected: 66 characters (0x + 64 hex)\nReceived: ${batchIdBytes32.length} characters\n\nBatch ID: ${batchIdBytes32}\n\nPlease check the blockchain batch ID and try again.`);
+				setProcessingId(null)
+				return
+			}
+
+			// Validate numeric fields
+			const quantityNum = parseFloat(batch.quantity_received);
+			const priceNum = parseFloat(batch.purchase_price);
+
+			if (isNaN(quantityNum) || quantityNum <= 0) {
+				setError(`❌ Invalid Quantity!\n\nQuantity must be a positive number.\n\nCurrent value: ${batch.quantity_received}`);
+				setProcessingId(null)
+				return
+			}
+
+			if (isNaN(priceNum) || priceNum < 0) {
+				setError(`❌ Invalid Price!\n\nPrice must be a valid number (can be 0 or positive).\n\nCurrent value: ${batch.purchase_price}`);
+				setProcessingId(null)
+				return
+			}
+
+			console.log('✅ All validations passed. Submitting batch to blockchain:', {
+				batchId: batchIdBytes32,
+				cropName: batch.crop_name,
+				distributorName: batch.distributor_name,
+				quantityReceived: quantityNum,
+				purchasePrice: priceNum
+			})
+
 			// Submit to blockchain
 			const txHash = await addDistributor(
-				batch.batch_id,
+				batchIdBytes32,
 				batch.crop_name,
 				batch.distributor_name,
-				batch.quantity_received,
-				batch.purchase_price,
-				batch.transport_details,
-				batch.warehouse_location,
-				batch.handover_date
+				quantityNum,
+				priceNum,
+				batch.transport_details || 'Standard Transport',
+				batch.warehouse_location || 'Default Warehouse',
+				batch.handover_date || Math.floor(Date.now() / 1000)
 			)
 
-		// Update database with distributor tx hash
-		const response = await fetch(`${API_BASE_URL}/api/approvals/${batch.id}/blockchain-confirm`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ distributorTxHash: txHash })
+			// Update database with distributor tx hash
+			const response = await fetch(`${API_BASE_URL}/api/approvals/${batch.id}/blockchain-confirm`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ distributorTxHash: txHash })
 			})
 
 			const data = await response.json()
 
 			if (data.success) {
-				setSuccessMessage(`✅ Batch "${batch.batch_id}" submitted to blockchain! Transaction: ${txHash}`)
+				setSuccessMessage(`✅ Batch "${batch.batch_id}" submitted to blockchain!\n\nTransaction Hash: ${txHash}`)
 				setApprovedBatches(approvedBatches.filter(b => b.id !== batch.id))
 				if (onTransactionComplete) {
 					onTransactionComplete(txHash)
 				}
 			} else {
-				setError(data.error || 'Failed to confirm blockchain submission')
+				setError(`❌ Database Error:\n\n${data.error || 'Failed to confirm blockchain submission'}`)
 			}
 		} catch (err) {
 			console.error('Error submitting to blockchain:', err)
-			setError(err.message || 'Failed to submit to blockchain')
+			setError(`❌ Transaction Error:\n\n${err.message || 'Failed to submit to blockchain'}\n\nPlease check:\n1. Wallet is connected\n2. Sufficient balance\n3. Batch ID is valid (0x + 64 hex chars)`)
 		} finally {
 			setProcessingId(null)
 		}
@@ -102,21 +162,31 @@ export default function ApprovedBatches({ onTransactionComplete }) {
 	}
 
 	return (
-		<div className="bg-white rounded-lg border border-slate-200 p-6">
+		<div className="bg-white rounded-lg border border-slate-200 p-6 w-full max-w-full">
 			<h3 className="text-xl font-semibold text-slate-900 mb-2">✅ Approved Batches - Ready for Blockchain</h3>
 			<p className="text-sm text-slate-600 mb-4">Farmer has approved these batches. Submit them to blockchain now.</p>
 
 			{error && (
-				<div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
-					<FaExclamationTriangle className="text-red-500" />
-					<span className="text-red-700">{error}</span>
+				<div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg w-full overflow-hidden">
+					<div className="flex items-start gap-3">
+						<FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0 mt-1" />
+						<div className="flex-1 min-w-0">
+							<p className="text-red-800 font-semibold mb-1">Error:</p>
+							<p className="text-red-700 text-sm whitespace-pre-wrap break-words overflow-hidden">{error}</p>
+						</div>
+					</div>
 				</div>
 			)}
 
 			{successMessage && (
-				<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
-					<FaCheckCircle className="text-green-500" />
-					<span className="text-green-700">{successMessage}</span>
+				<div className="mb-4 p-4 bg-green-50 border-2 border-green-300 rounded-lg w-full overflow-hidden">
+					<div className="flex items-start gap-3">
+						<FaCheckCircle className="text-green-600 text-xl flex-shrink-0 mt-1" />
+						<div className="flex-1 min-w-0">
+							<p className="text-green-800 font-semibold mb-1">Success:</p>
+							<p className="text-green-700 text-sm whitespace-pre-wrap break-words overflow-hidden">{successMessage}</p>
+						</div>
+					</div>
 				</div>
 			)}
 
